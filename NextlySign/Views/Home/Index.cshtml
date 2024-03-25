@@ -1,0 +1,161 @@
+﻿@{Layout = null; }
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drag and Drop Field Inside PDF</title>
+    <style>
+        .draggable {
+            cursor: move;
+        }
+
+        .resizable {
+            resize: both;
+            overflow: hidden;
+        }
+
+        #side-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 200px;
+            height: 100%;
+            background-color: #f0f0f0;
+            border-right: 1px solid #ccc;
+            padding: 10px;
+        }
+
+        #signature-placeholder {
+            width: 150px;
+            height: 50px;
+            background-color: #ffffff;
+            border: 1px dashed #cccccc;
+            margin-bottom: 10px;
+        }
+
+        #pdf-container {
+            position: absolute;
+            left: 220px; /* Adjust as needed */
+            top: 10px; /* Adjust as needed */
+        }
+
+        #pdf-canvas {
+            border: 1px solid #ccc;
+        }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+</head>
+<body>
+    <div id="side-panel">
+        <h2>Signature Field</h2>
+        <div id="signature-placeholder" class="draggable">Signature Field</div>
+    </div>
+
+    <div id="pdf-container">
+        <input type="file" id="pdfFile" accept=".pdf" />
+        <canvas id="pdf-canvas"></canvas>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <script>
+        var canvas = document.getElementById('pdf-canvas');
+        var ctx = canvas.getContext('2d');
+        var pdfDocument;
+
+        var isDragging = false;
+        var offsetX, offsetY;
+        var currentField = null;
+
+        // Load PDF and render it on the canvas
+        function renderPdf(pdfData) {
+            pdfjsLib.getDocument({ data: pdfData }).promise.then(function (pdf) {
+                pdf.getPage(1).then(function (page) {
+                    var viewport = page.getViewport({ scale: 1.5 });
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+                    var renderContext = {
+                        canvasContext: ctx,
+                        viewport: viewport,
+                    };
+                    page.render(renderContext);
+                });
+            });
+        }
+
+        // Add mousedown event listener to the field
+        document.getElementById('signature-placeholder').addEventListener('mousedown', function (event) {
+            if (!isDragging) {
+                isDragging = true;
+                offsetX = event.clientX;
+                offsetY = event.clientY;
+                currentField = $('<div class="signature-field resizable draggable"></div>');
+                currentField.css({
+                    position: 'absolute',
+                    left: offsetX + 'px',
+                    top: offsetY + 'px',
+                    width: '150px',
+                    height: '50px',
+                    backgroundColor: '#ffffff',
+                    border: '1px dashed #cccccc',
+                    cursor: 'move'
+                });
+                $('body').append(currentField);
+            }
+        });
+
+        // Add mousemove event listener to the body
+        $(document).mousemove(function (event) {
+            if (isDragging && currentField) {
+                var deltaX = event.clientX - offsetX;
+                var deltaY = event.clientY - offsetY;
+                currentField.css({
+                    left: offsetX + deltaX + 'px',
+                    top: offsetY + deltaY + 'px'
+                });
+            }
+        });
+
+        // Add mouseup event listener to the canvas
+        canvas.addEventListener('mouseup', function (event) {
+            if (isDragging && currentField) {
+                isDragging = false;
+                var rect = canvas.getBoundingClientRect();
+                var x = event.clientX - rect.left;
+                var y = event.clientY - rect.top;
+                currentField.appendTo('#pdf-container').css({
+                    left: x + 'px',
+                    top: y + 'px'
+                });
+            }
+        });
+
+        // Handle PDF file selection
+        document.getElementById('pdfFile').addEventListener('change', function () {
+            var file = this.files[0];
+            if (file) {
+                var fileReader = new FileReader();
+                fileReader.onload = function () {
+                    var typedarray = new Uint8Array(this.result);
+                    renderPdf(typedarray);
+                };
+                fileReader.readAsArrayBuffer(file);
+            }
+        });
+
+        // Make the signature field resizable using jQuery UI Resizable
+        $(document).on('mousedown', '.resizable', function () {
+            $(this).resizable({
+                handles: 'se',
+                containment: '#pdf-container',
+                minWidth: 50,
+                minHeight: 20
+            });
+        });
+    </script>
+</body>
+</html>
+
+
